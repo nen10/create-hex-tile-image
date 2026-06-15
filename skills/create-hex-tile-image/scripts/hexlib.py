@@ -360,15 +360,38 @@ def render_hex_tile(
 
 def write_preview(source: Image.Image, preview_path: Path, selection: dict[str, Any], orientation: str) -> None:
     preview = source.copy()
-    overlay = Image.new("RGBA", preview.size, (0, 0, 0, 0))
-    draw = ImageDraw.Draw(overlay)
     x = float(selection["x"])
     y = float(selection["y"])
     width = float(selection["w"])
     height = float(selection["h"])
-    draw.rectangle((x, y, x + width, y + height), outline=(255, 214, 91, 255), width=6)
-    draw.line(hex_polygon(x, y, width, height, orientation) + [hex_polygon(x, y, width, height, orientation)[0]], fill=(8, 127, 131, 255), width=6)
-    draw.rectangle((x, y, x + width, y + height), fill=(8, 127, 131, 32))
+    selection_box = (x, y, x + width, y + height)
+    hex_points = hex_polygon(x, y, width, height, orientation)
+
+    dim = Image.new("RGBA", preview.size, (0, 0, 0, 72))
+    dim_draw = ImageDraw.Draw(dim)
+    dim_draw.rectangle(selection_box, fill=(0, 0, 0, 0))
+    preview = Image.alpha_composite(preview, dim)
+
+    overlay = Image.new("RGBA", preview.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+    draw.rectangle(selection_box, fill=(255, 214, 91, 26), outline=(255, 214, 91, 255), width=4)
+    draw.polygon(hex_points, fill=(8, 127, 131, 46))
+    draw.line(hex_points + [hex_points[0]], fill=(255, 255, 255, 255), width=8, joint="curve")
+    draw.line(hex_points + [hex_points[0]], fill=(8, 127, 131, 255), width=4, joint="curve")
+
+    focus = selection.get("focus")
+    if isinstance(focus, dict):
+        focus_x = float(focus.get("x", x + width / 2))
+        focus_y = float(focus.get("y", y + height / 2))
+        if focus.get("units") == "normalized":
+            focus_x *= preview.width
+            focus_y *= preview.height
+        marker = max(8, min(preview.size) // 80)
+        draw.line((focus_x - marker, focus_y, focus_x + marker, focus_y), fill=(255, 255, 255, 255), width=5)
+        draw.line((focus_x, focus_y - marker, focus_x, focus_y + marker), fill=(255, 255, 255, 255), width=5)
+        draw.line((focus_x - marker, focus_y, focus_x + marker, focus_y), fill=(196, 55, 55, 255), width=3)
+        draw.line((focus_x, focus_y - marker, focus_x, focus_y + marker), fill=(196, 55, 55, 255), width=3)
+
     preview = Image.alpha_composite(preview, overlay)
     preview_path.parent.mkdir(parents=True, exist_ok=True)
     preview.save(preview_path)

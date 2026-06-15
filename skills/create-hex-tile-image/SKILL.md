@@ -67,6 +67,8 @@ python3 skills/create-hex-tile-image/scripts/hex_crop.py \
 
 Each crop writes `<output>.hex.json` unless `--no-sidecar` is set.
 
+Preview overlays dim the source outside the selected crop rectangle, show the crop rectangle in yellow, show the final hex area in teal, and mark `focus` selections with a red crosshair.
+
 ## Batch Crop
 
 Use batch crop after sources are already saved:
