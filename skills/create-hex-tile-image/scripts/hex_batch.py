@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from hexlib import image_files, parse_pair, parse_size, render_hex_tile, write_json
+from hexlib import image_files, parse_pair, render_hex_tile, resolve_size, write_json
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -14,7 +14,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("input_dir", type=Path, help="Directory containing source images")
     parser.add_argument("--out-dir", required=True, type=Path, help="Output tile directory")
     parser.add_argument("--orientation", choices=["pointy", "flat"], default="pointy")
-    parser.add_argument("--size", required=True, help="Output size as WIDTHxHEIGHT")
+    parser.add_argument("--long-side", type=int, help="Longer tile side in px; width/height derived from orientation (recommended)")
+    parser.add_argument("--size", help="Exact output size as WIDTHxHEIGHT (alternative to --long-side)")
     parser.add_argument("--selection", choices=["center", "full-fit", "focus"], default="center")
     parser.add_argument("--fill", type=float, default=0.82)
     parser.add_argument("--focus", help="Default focus point as X,Y")
@@ -55,7 +56,7 @@ def option_value(item: dict[str, Any], defaults: dict[str, Any], name: str, fall
 
 def main() -> int:
     args = build_parser().parse_args()
-    size = parse_size(args.size)
+    size = resolve_size(args.size, args.long_side, args.orientation)
     spec = load_spec(args.spec)
     defaults = spec.get("defaults", {})
     item_map = spec_by_input(spec)

@@ -31,6 +31,39 @@ def parse_size(value: str) -> tuple[int, int]:
     return width, height
 
 
+def size_from_long_side(long_side: int, orientation: str) -> tuple[int, int]:
+    """Return the (width, height) canvas whose longer side is ``long_side``.
+
+    The canvas is sized so a regular hex fills it tightly (minimal transparent
+    margin). pointy-top is taller than wide, so height is the long side;
+    flat-top is wider than tall, so width is the long side.
+    """
+    if orientation not in {"pointy", "flat"}:
+        raise ValueError("orientation must be pointy or flat")
+    if long_side < 16:
+        raise ValueError("long side must be at least 16")
+    short_side = int(round(SQRT3 / 2 * long_side))
+    if orientation == "pointy":
+        return short_side, long_side
+    return long_side, short_side
+
+
+def resolve_size(size: str | None, long_side: int | None, orientation: str) -> tuple[int, int]:
+    """Resolve the output canvas size from either --long-side or --size.
+
+    --long-side is the recommended path: the caller passes one number and the
+    width/height are derived from the orientation. --size remains for callers
+    that need an exact canvas.
+    """
+    if long_side is not None and size is not None:
+        raise ValueError("pass either --long-side or --size, not both")
+    if long_side is not None:
+        return size_from_long_side(long_side, orientation)
+    if size is not None:
+        return parse_size(size)
+    raise ValueError("pass --long-side N (recommended) or --size WIDTHxHEIGHT")
+
+
 def parse_pair(value: str) -> tuple[float, float]:
     text = value.replace(" ", "")
     if "," not in text:

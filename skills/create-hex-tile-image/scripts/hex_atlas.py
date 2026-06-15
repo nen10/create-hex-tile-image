@@ -7,7 +7,7 @@ import math
 from pathlib import Path
 from typing import Any
 
-from hexlib import IMAGE_EXTENSIONS, parse_size, write_json
+from hexlib import IMAGE_EXTENSIONS, resolve_size, write_json
 
 try:
     from PIL import Image
@@ -21,7 +21,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--out", required=True, type=Path, help="Output atlas PNG")
     parser.add_argument("--manifest", type=Path, help="Output atlas manifest JSON")
     parser.add_argument("--orientation", choices=["pointy", "flat"], required=True)
-    parser.add_argument("--size", required=True, help="Tile size as WIDTHxHEIGHT")
+    parser.add_argument("--long-side", type=int, help="Longer tile side in px; must match the tiles (recommended)")
+    parser.add_argument("--size", help="Exact tile size as WIDTHxHEIGHT (alternative to --long-side)")
     parser.add_argument("--pattern", default="*.png")
     parser.add_argument("--strict", action="store_true", help="Fail if incompatible files are found")
     parser.add_argument("--json", action="store_true")
@@ -51,7 +52,7 @@ def read_sidecar(path: Path) -> dict[str, Any] | None:
 
 def main() -> int:
     args = build_parser().parse_args()
-    tile_w, tile_h = parse_size(args.size)
+    tile_w, tile_h = resolve_size(args.size, args.long_side, args.orientation)
     skipped: list[dict[str, Any]] = []
     candidates: list[dict[str, Any]] = []
 

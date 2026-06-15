@@ -15,10 +15,11 @@ skills/create-hex-tile-image/
   scripts/hex_batch.py
   scripts/hex_atlas.py
   scripts/hexlib.py
-  scripts/make_sample_sources.py
 ```
 
 The skill is prepared as a standalone folder with the required `SKILL.md`, UI metadata in `agents/openai.yaml`, bundled scripts, and a reference contract.
+
+The skill's emphasis is on generating good source artwork with an image-generation tool and iterating on it; the bundled scripts handle all geometry, sizing (`--long-side`), and packing. The procedural placeholder generator in `dev/make_validation_fixtures.py` is a self-test fixture only and is deliberately kept out of the skill so it is never mistaken for a way to make real tiles.
 
 ## What It Produces
 
@@ -45,32 +46,35 @@ Key outputs:
 
 The scripts require Pillow. If `python3 -c "import PIL"` fails, use the bundled Codex Desktop Python returned by `load_workspace_dependencies`.
 
-## Quick Validation
+## Quick Validation (pipeline self-test only)
+
+This exercises the crop/atlas scripts with throwaway geometric fixtures. It does
+**not** represent how real tiles are made — real sources come from an
+image-generation tool (see `SKILL.md`). The fixtures only give the scripts
+deterministic inputs to run against.
 
 ```bash
 PYTHON=${PYTHON:-python3}
 
-$PYTHON skills/create-hex-tile-image/scripts/make_sample_sources.py \
+$PYTHON dev/make_validation_fixtures.py \
   --out-dir outputs/skill-validation/sources \
   --count 4 \
   --size 960x768
 
 $PYTHON skills/create-hex-tile-image/scripts/hex_batch.py \
   outputs/skill-validation/sources \
-  --out-dir outputs/skill-validation/tiles/pointy/256x296 \
+  --out-dir outputs/skill-validation/tiles/pointy \
   --orientation pointy \
-  --size 256x296 \
-  --selection center \
-  --preview-dir outputs/skill-validation/previews/pointy/256x296 \
-  --manifest outputs/skill-validation/manifests/batch-pointy-256x296.json \
+  --long-side 256 \
+  --manifest outputs/skill-validation/manifests/batch-pointy.json \
   --json
 
 $PYTHON skills/create-hex-tile-image/scripts/hex_atlas.py \
-  outputs/skill-validation/tiles/pointy/256x296 \
-  --out outputs/skill-validation/atlases/pointy/256x296/atlas.png \
-  --manifest outputs/skill-validation/atlases/pointy/256x296/atlas.json \
+  outputs/skill-validation/tiles/pointy \
+  --out outputs/skill-validation/atlases/pointy/atlas.png \
+  --manifest outputs/skill-validation/atlases/pointy/atlas.json \
   --orientation pointy \
-  --size 256x296 \
+  --long-side 256 \
   --json
 ```
 

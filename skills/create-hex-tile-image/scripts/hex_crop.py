@@ -5,7 +5,7 @@ import argparse
 import json
 from pathlib import Path
 
-from hexlib import parse_pair, parse_size, render_hex_tile, write_json
+from hexlib import parse_pair, render_hex_tile, resolve_size, write_json
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -13,7 +13,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("input", type=Path, help="Source image path")
     parser.add_argument("--out", required=True, type=Path, help="Output PNG path")
     parser.add_argument("--orientation", choices=["pointy", "flat"], default="pointy")
-    parser.add_argument("--size", required=True, help="Output size as WIDTHxHEIGHT")
+    parser.add_argument("--long-side", type=int, help="Longer tile side in px; width/height derived from orientation (recommended)")
+    parser.add_argument("--size", help="Exact output size as WIDTHxHEIGHT (alternative to --long-side)")
     parser.add_argument("--selection", choices=["center", "full-fit", "focus"], default="center")
     parser.add_argument("--fill", type=float, default=0.82, help="Selection fill ratio for center/focus modes")
     parser.add_argument("--focus", help="Focus point as X,Y for focus mode")
@@ -34,7 +35,7 @@ def main() -> int:
         input_path=args.input,
         output_path=args.out,
         orientation=args.orientation,
-        size=parse_size(args.size),
+        size=resolve_size(args.size, args.long_side, args.orientation),
         selection_mode=args.selection,
         fill=args.fill,
         focus=focus,

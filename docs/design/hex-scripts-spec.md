@@ -11,7 +11,12 @@ This document is a concise contract for the scripts bundled in `skills/create-he
 ## Shared Concepts
 
 - `orientation`: `pointy` or `flat`.
-- `size`: output canvas size as `WIDTHxHEIGHT`.
+- `long-side` (recommended): the longer tile side in px. The script derives the
+  canvas from the orientation — `pointy` makes it the height, `flat` makes it the
+  width — so callers never compute width/height. `--long-side 64` yields 55×64
+  for `pointy` and 64×55 for `flat`.
+- `size`: exact output canvas size as `WIDTHxHEIGHT`, for the rare case an exact
+  canvas is required. Pass either `--long-side` or `--size`, not both.
 - `selection`: high-level crop strategy.
   - `center`: centered crop using `--fill`.
   - `full-fit`: largest crop matching the destination hex ratio.
@@ -40,7 +45,7 @@ Required:
 python3 skills/create-hex-tile-image/scripts/hex_crop.py INPUT \
   --out OUTPUT.png \
   --orientation pointy \
-  --size 512x591
+  --long-side 64
 ```
 
 Important options:
@@ -72,8 +77,8 @@ Required:
 python3 skills/create-hex-tile-image/scripts/hex_batch.py INPUT_DIR \
   --out-dir TILE_DIR \
   --orientation pointy \
-  --size 512x591 \
-  --manifest manifests/batch-pointy-512x591.json
+  --long-side 64 \
+  --manifest manifests/batch-pointy.json
 ```
 
 Important options:
@@ -115,10 +120,10 @@ Required:
 
 ```bash
 python3 skills/create-hex-tile-image/scripts/hex_atlas.py TILE_DIR \
-  --out atlases/pointy/512x591/atlas.png \
-  --manifest atlases/pointy/512x591/atlas.json \
+  --out atlases/pointy/atlas.png \
+  --manifest atlases/pointy/atlas.json \
   --orientation pointy \
-  --size 512x591
+  --long-side 64
 ```
 
 Compatibility rules:
@@ -126,7 +131,7 @@ Compatibility rules:
 - PNG must have a matching `.hex.json` sidecar.
 - Sidecar `role` must be `hex_tile`.
 - Sidecar `orientation` must match `--orientation`.
-- Sidecar `outputSize` and PNG dimensions must match `--size`.
+- Sidecar `outputSize` and PNG dimensions must match the resolved tile size.
 
 Packing rule:
 
@@ -144,15 +149,18 @@ Outputs:
 - `atlas.png`: RGBA atlas PNG.
 - `atlas.json`: atlas manifest with `entries` and `skipped`.
 
-## `make_sample_sources.py`
+## `dev/make_validation_fixtures.py`
 
-Purpose: create deterministic sample source images for local validation.
+Purpose: draw deterministic geometric placeholders so the crop/atlas scripts have
+inputs to self-test against. It lives in `dev/`, outside the skill, on purpose.
 
 ```bash
-python3 skills/create-hex-tile-image/scripts/make_sample_sources.py \
+python3 dev/make_validation_fixtures.py \
   --out-dir outputs/skill-validation/sources \
   --count 4 \
   --size 960x768
 ```
 
-This script is for validation only. It is not required by the production asset pipeline.
+This is a developer fixture, not part of the skill. It is **not** a way to make
+tile artwork — real sources come from the image-generation tool. Never feed
+procedurally drawn placeholders into a production atlas.

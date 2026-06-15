@@ -1,128 +1,116 @@
 ---
 name: create-hex-tile-image
-description: Generate and prepare hex-shaped image tile assets from source or AI-generated images. Use when Codex needs to retain pre-crop generated images, crop them into pointy-top or flat-top transparent PNG hex tiles, batch-process matching tile formats, or pack compatible cropped tiles into a near-square Godot-ready atlas with JSON manifests.
+description: Create hex-shaped image tile assets. The real work is generating good source artwork with your image-generation tool and iterating on it until it matches the request; the bundled scripts then mechanically crop each image into a pointy-top or flat-top transparent hex PNG and pack matching tiles into a Godot-ready atlas. Use when an agent needs a set of themed hex tiles or a hex tile atlas. Do not draw the artwork procedurally (no Pillow/SVG/canvas art) — the scripts handle all geometry and sizing, so spend your effort on the images.
 ---
 
 # Create Hex Tile Image
 
 ## Overview
 
-Use this skill to turn generated or provided source images into reproducible hex tile assets. Keep the original generated image, crop it through deterministic scripts, write metadata sidecars, then optionally pack compatible tiles into an atlas.
+This skill has two parts, and they are not equal:
 
-## Workflow
+1. **Generate the source images (this is the work).** Use your image-generation tool to create artwork that matches the request, and iterate until it actually looks right. This is where almost all of your effort goes.
+2. **Run the pipeline (this is mechanical).** Three deterministic scripts crop each source into a transparent hex PNG and pack matching tiles into an atlas. They handle every geometry and sizing decision for you. Do not think hard here — just run them.
 
-1. Save every pre-crop generated image in a `sources/` directory before running any crop.
-2. Decide the downstream format: `orientation` (`pointy` or `flat`) and output `size` (`WIDTHxHEIGHT`).
-3. Crop one image with `scripts/hex_crop.py`, or crop a directory with `scripts/hex_batch.py`.
-4. Review the manifest and optional preview overlay. If the subject is misplaced, rerun with `--selection focus --focus X,Y --focus-units normalized`.
-5. Group cropped tiles by the same orientation and size.
-6. Pack one group with `scripts/hex_atlas.py`. Rely on `.hex.json` sidecars to reject incompatible files.
+The most common failure is inverting this: treating generation as a checkbox and pouring effort into sizes, grids, and crop math. Don't. **Sizing is solved.** If you ever feel tempted to compute tile dimensions or draw tiles yourself, stop — that is a signal you are in the wrong part of the task.
 
-Read `references/artifact-contract.md` when a downstream pipeline needs exact artifact paths or JSON fields.
+## Generate Source Images
 
-## Python Runtime
+This is the heart of the skill. Take it seriously and iterate.
 
-The scripts require Pillow. First try the active Python:
+### Use the image-generation tool — never draw the art yourself
 
-```bash
-python3 -c "import PIL"
-```
+Create every source image with the image-generation tool available to you (e.g. Codex's image generation / Image 2.0, or the equivalent image model in your environment). 
 
-If that fails in Codex Desktop, call `load_workspace_dependencies` and use the returned bundled Python executable.
+**Hard rule:** do not synthesize the artwork with Pillow, SVG, HTML canvas, NumPy, or any procedural drawing code. Procedural gradients-and-shapes are not tile art, and "deterministic / reproducible" is not a reason to skip real generation — that requirement applies only to the crop and atlas scripts, never to the artwork. The only Pillow in this skill lives inside the crop/pack scripts. If you cannot reach an image-generation tool, say so and stop; do not substitute a procedural placeholder.
 
-## Single Crop
+### Iterate: generate → look → regenerate
 
-Use high-level selections first:
+Treat generation as a loop, not a single shot:
 
-- `center`: default crop around the center.
-- `full-fit`: keep as much of the source image as possible.
-- `focus`: center the crop on a subject or face coordinate.
+1. Write a clear prompt that captures the theme, palette, and subject framing the request asks for. For a set, decide what makes the set coherent (shared style, lighting, color story) and what varies per tile.
+2. Generate a **small first batch** (e.g. 3–4), not the full count.
+3. **Look at each one and decide accept or reject.** Compare against the request — on-theme? consistent with the set? When you **accept** an image, deciding *how it will be cropped* is part of the judgment, so record that now:
+   - **Whole image, centered** — if the picture reads well as a whole and its subject sits near the middle, a plain centered crop is enough. Use `--selection center` (or `--selection full-fit` to keep as much of the image as possible). Nothing extra to record.
+   - **A specific region** — if the important part is off-center, or you want a particular subject or zoom level, note a good crop center and size now: a normalized focus point and how much of the image to keep. These become `--selection focus --focus X,Y --focus-units normalized` (with `--fill` controlling how much area is kept). Write them down per image so you can hand them to the crop step instead of re-deciding later.
+4. Reject the rest and **regenerate with an improved prompt.** Iterate on the prompt and the imagery — never on the geometry.
+5. Once the first batch is solid, generate the remaining images in the same style and apply the same accept/record/regenerate pass.
 
-Example:
+A good stopping point is "every accepted source clearly matches the request, the set hangs together, and each one has a crop decision (centered, or a recorded focus + size)," not "I have N files."
 
-```bash
-python3 skills/create-hex-tile-image/scripts/hex_crop.py \
-  work/sources/tile-source.png \
-  --out work/tiles/pointy/512x591/tile-source-pointy-512x591-hex.png \
-  --orientation pointy \
-  --size 512x591 \
-  --selection center \
-  --preview work/previews/pointy/512x591/tile-source-overlay.png \
-  --json
-```
+### Practical generation tips
 
-For face-centered or subject-centered crops, estimate the focus point from the image and use normalized coordinates:
+- **Generate large and roughly square.** Produce sources well above the final tile size (e.g. 1024px or more on the long side). The crop script downscales; starting large keeps tiles crisp. You never need to match the source to the tile size.
+- **Frame the subject with margin.** A regular hex crop trims the corners, so keep the key subject away from the edges. If a subject sits off-center, you can steer the crop later with `--selection focus`, but it is easier to fix in the prompt.
+- **Save every source before cropping.** Write each generated image into a `sources/` directory and keep it. Sources are your re-run point for a different orientation, size, or crop without regenerating.
 
-```bash
-python3 skills/create-hex-tile-image/scripts/hex_crop.py \
-  work/sources/portrait.png \
-  --out work/tiles/pointy/512x591/portrait-pointy-512x591-hex.png \
-  --orientation pointy \
-  --size 512x591 \
-  --selection focus \
-  --focus 0.52,0.38 \
-  --focus-units normalized \
-  --preview work/previews/pointy/512x591/portrait-overlay.png
-```
+## Run the Pipeline (mechanical)
 
-Each crop writes `<output>.hex.json` unless `--no-sidecar` is set.
+Once `sources/` holds artwork you are happy with, the rest is three commands. Pass `--long-side N` and let the scripts derive everything else. You do **not** compute width/height, pick grids, or reason about geometry.
 
-Preview overlays dim the source outside the selected crop rectangle, show the crop rectangle in yellow, show the final hex area in teal, and mark `focus` selections with a red crosshair.
+The scripts require Pillow. First try the active Python; if `python3 -c "import PIL"` fails in Codex Desktop, call `load_workspace_dependencies` and use the returned bundled Python executable.
 
-## Batch Crop
+### Size: just give the long side
 
-Use batch crop after sources are already saved:
+The request usually states a long side (e.g. "long side 64px"). Pass it as `--long-side` and the script derives the canvas from the orientation:
+
+- `pointy` is taller than wide → height is the long side (e.g. `--long-side 64` → 55×64).
+- `flat` is wider than tall → width is the long side (e.g. `--long-side 64` → 64×55).
+
+Do not compute these numbers yourself. (`--size WIDTHxHEIGHT` exists for the rare case you need an exact canvas.)
+
+### Batch crop a folder of sources
 
 ```bash
 python3 skills/create-hex-tile-image/scripts/hex_batch.py \
   work/sources \
-  --out-dir work/tiles/pointy/512x591 \
+  --out-dir work/tiles/pointy \
   --orientation pointy \
-  --size 512x591 \
-  --selection center \
-  --preview-dir work/previews/pointy/512x591 \
-  --manifest work/manifests/batch-pointy-512x591.json \
+  --long-side 64 \
+  --manifest work/manifests/batch-pointy.json \
   --json
 ```
 
-If individual images need different focus points, pass a spec JSON:
+For a different orientation, rerun the same command against the same `sources/` with `--orientation flat`.
+
+The command above crops every source the same way (centered). To apply the **per-image crop decisions** you recorded while reviewing — focus point and fill for the images that needed a specific region — pass a `--spec` JSON; images not listed fall back to the centered default:
 
 ```json
 {
-  "defaults": { "selection": "center", "fill": 0.82 },
+  "defaults": { "selection": "center" },
   "items": [
-    {
-      "input": "portrait.png",
-      "selection": "focus",
-      "focus": [0.52, 0.38],
-      "focusUnits": "normalized"
-    }
+    { "input": "reactor-core.png", "selection": "focus", "focus": [0.46, 0.38], "focusUnits": "normalized", "fill": 0.7 }
   ]
 }
 ```
 
-## Atlas Packing
-
-Only pack a directory that contains cropped tiles from one orientation and size group. The atlas tool reads sidecars and skips files that are missing metadata or have mismatched size/orientation.
+### Pack matching tiles into an atlas
 
 ```bash
 python3 skills/create-hex-tile-image/scripts/hex_atlas.py \
-  work/tiles/pointy/512x591 \
-  --out work/atlases/pointy/512x591/atlas.png \
-  --manifest work/atlases/pointy/512x591/atlas.json \
+  work/tiles/pointy \
+  --out work/atlases/pointy/atlas.png \
+  --manifest work/atlases/pointy/atlas.json \
   --orientation pointy \
-  --size 512x591 \
+  --long-side 64 \
   --json
 ```
 
-Use `--strict` when mixed input should fail the run instead of producing a filtered atlas.
+The atlas tool reads each tile's `.hex.json` sidecar and automatically skips anything with the wrong orientation, wrong size, or missing metadata, and it picks the near-square grid for you. These deterministic guarantees are the scripts' job — you do not verify geometry by hand.
+
+### When a single image or a custom crop is needed
+
+Most runs only need batch + atlas. For a one-off tile, or to fine-tune framing on a specific image, `scripts/hex_crop.py` crops a single source and accepts `--selection center|full-fit|focus` (with `--focus X,Y --focus-units normalized`) and `--preview` to write an overlay showing the crop. Read `references/artifact-contract.md` for exact artifact paths and JSON fields.
 
 ## Completion Checks
 
-Before reporting completion:
+Check the artwork first — that is what was actually requested:
 
-- Confirm source images still exist under `sources/`.
-- Confirm each tile PNG has a `.hex.json` sidecar.
-- Confirm batch manifest `records` contains the expected tile count.
-- Confirm atlas manifest `entries` contains only matching tile size and orientation.
-- Inspect `warnings` and `skipped`; rerun with better focus or grouping if they indicate a real problem.
+- **Every source image matches the request** (theme, style, framing) and the set is coherent. State how many you regenerated to get there.
+- Sources were generated with the image-generation tool, not drawn procedurally.
+
+Then confirm the mechanical outputs:
+
+- Source images still exist under `sources/`.
+- Each tile PNG has a `.hex.json` sidecar, and the batch manifest `records` holds the expected tile count.
+- The atlas manifest `entries` contains only matching tiles; inspect `skipped` / `warnings` and rerun only if they point to a real problem.
