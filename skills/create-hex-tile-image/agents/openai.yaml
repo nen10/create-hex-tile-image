@@ -1,0 +1,4 @@
+interface:
+  display_name: "Create Hex Tile Image"
+  short_description: "Generate, crop, and pack hex tile PNGs"
+  default_prompt: "Use $create-hex-tile-image to generate hex-shaped tile PNGs and pack them into a Godot-ready atlas."
