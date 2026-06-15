@@ -657,7 +657,6 @@
     const MAX_OUTPUT_SIZE = 4096;
     const HANDLE_SIZE = 10;
     const MIN_SELECTION_SIZE = 8;
-    const DRAG_START_THRESHOLD = 4;
 
     const els = {
       imageInput: document.getElementById('imageInput'),
@@ -1033,6 +1032,7 @@
     function updateSelectionFromDrag(point) {
       const drag = state.drag;
       if (!drag || !state.image) return;
+      drag.changed = true;
 
       if (drag.mode === 'move') {
         state.selection = clampSelection({
@@ -1044,7 +1044,6 @@
       } else if (drag.mode === 'resize') {
         state.selection = resizeSelection(drag.start, drag.handle, point);
       } else if (drag.mode === 'create') {
-        drag.created = true;
         state.selection = createSelectionFromPoints(drag.startPoint, point);
       }
 
@@ -1392,13 +1391,11 @@
         state.drag = {
           mode: 'create',
           startPoint: clamped,
-          start: state.selection ? { ...state.selection } : null,
-          startClientX: event.clientX,
-          startClientY: event.clientY,
-          created: false
+          start: { ...state.selection },
+          changed: false
         };
+        state.selection = { x: clamped.x, y: clamped.y, w: MIN_SELECTION_SIZE, h: MIN_SELECTION_SIZE };
       }
-      drawSource();
     });
 
     els.sourceCanvas.addEventListener('pointermove', (event) => {
@@ -1408,13 +1405,6 @@
         els.sourceCanvas.style.cursor = cursorForHit(hit);
         return;
       }
-      if (state.drag.mode === 'create') {
-        const dx = event.clientX - state.drag.startClientX;
-        const dy = event.clientY - state.drag.startClientY;
-        if (!state.drag.created && Math.hypot(dx, dy) < DRAG_START_THRESHOLD) {
-          return;
-        }
-      }
       const point = toImagePoint(event.clientX, event.clientY);
       updateSelectionFromDrag({
         x: clamp(point.x, 0, state.image.width),
@@ -1422,15 +1412,22 @@
       });
     });
 
-    els.sourceCanvas.addEventListener('pointerup', () => {
-      if (state.drag?.mode === 'create' && !state.drag.created) {
-        state.selection = state.drag.start;
+    els.sourceCanvas.addEventListener('pointerup', (event) => {
+      if (!state.drag) return;
+      const shouldRender = state.drag.mode !== 'create' || state.drag.changed;
+      if (els.sourceCanvas.hasPointerCapture?.(event.pointerId)) {
+        els.sourceCanvas.releasePointerCapture(event.pointerId);
       }
       state.drag = null;
-      renderAll();
+      if (shouldRender) {
+        renderAll();
+      }
     });
 
-    els.sourceCanvas.addEventListener('pointercancel', () => {
+    els.sourceCanvas.addEventListener('pointercancel', (event) => {
+      if (els.sourceCanvas.hasPointerCapture?.(event.pointerId)) {
+        els.sourceCanvas.releasePointerCapture(event.pointerId);
+      }
       state.drag = null;
       renderAll();
     });
