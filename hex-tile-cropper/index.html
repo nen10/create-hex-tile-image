@@ -1,0 +1,1461 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hex Tile Cropper</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #eef2f5;
+      --surface: #ffffff;
+      --surface-2: #f8fafc;
+      --ink: #172126;
+      --muted: #66747c;
+      --line: #d5dde2;
+      --accent: #087f83;
+      --accent-2: #b7791f;
+      --danger: #a33b3b;
+      --shadow: 0 18px 40px rgba(38, 52, 63, 0.14);
+      --radius: 8px;
+      --focus: 0 0 0 3px rgba(8, 127, 131, 0.18);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      min-height: 100%;
+    }
+
+    body {
+      margin: 0;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0)),
+        var(--bg);
+      color: var(--ink);
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.48;
+    }
+
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .mark {
+      width: 34px;
+      height: 34px;
+      flex: 0 0 auto;
+      background: var(--accent);
+      clip-path: polygon(50% 0, 94% 25%, 94% 75%, 50% 100%, 6% 75%, 6% 25%);
+      box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.32);
+    }
+
+    h1 {
+      font-size: 18px;
+      line-height: 1.1;
+      margin: 0;
+      letter-spacing: 0;
+      white-space: nowrap;
+    }
+
+    .status {
+      color: var(--muted);
+      font-size: 13px;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-align: right;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: minmax(260px, 330px) minmax(420px, 1fr) minmax(260px, 340px);
+      gap: 14px;
+      padding: 14px;
+      align-items: stretch;
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      min-width: 0;
+    }
+
+    .controls {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .control-scroll {
+      overflow: auto;
+      padding: 14px;
+    }
+
+    .group {
+      border-top: 1px solid var(--line);
+      padding-top: 14px;
+      margin-top: 14px;
+    }
+
+    .group:first-child {
+      border-top: 0;
+      padding-top: 0;
+      margin-top: 0;
+    }
+
+    .group-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      font-size: 12px;
+      font-weight: 760;
+      text-transform: uppercase;
+      letter-spacing: 0;
+      color: #435159;
+      margin-bottom: 10px;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+      margin: 10px 0;
+    }
+
+    .field-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .field label,
+    .toggle label {
+      font-size: 13px;
+      font-weight: 650;
+      color: #253137;
+    }
+
+    .unit-input {
+      position: relative;
+    }
+
+    .unit-input input {
+      padding-right: 40px;
+    }
+
+    .unit-input span {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--muted);
+      font-size: 12px;
+      pointer-events: none;
+    }
+
+    input[type="number"],
+    select {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: var(--surface-2);
+      color: var(--ink);
+      border-radius: 6px;
+      padding: 9px 10px;
+      min-height: 38px;
+    }
+
+    input[type="file"] {
+      width: 100%;
+      border: 1px dashed #aab6bd;
+      border-radius: 7px;
+      padding: 12px;
+      background: var(--surface-2);
+      color: var(--ink);
+    }
+
+    input:focus,
+    select:focus,
+    button:focus-visible {
+      outline: none;
+      box-shadow: var(--focus);
+      border-color: var(--accent);
+    }
+
+    .segmented {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      background: #e6ecef;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 4px;
+    }
+
+    .segmented button {
+      min-height: 34px;
+      border: 0;
+      border-radius: 5px;
+      background: transparent;
+      color: #334149;
+      font-weight: 690;
+    }
+
+    .segmented button.active {
+      background: var(--surface);
+      color: var(--accent);
+      box-shadow: 0 1px 5px rgba(38, 52, 63, 0.12);
+    }
+
+    .toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin: 11px 0;
+      min-height: 34px;
+    }
+
+    .toggle.locked label {
+      color: #617077;
+    }
+
+    .switch {
+      position: relative;
+      display: inline-flex;
+      width: 46px;
+      height: 26px;
+      flex: 0 0 auto;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      inset: 0;
+      border-radius: 999px;
+      background: #c3cdd3;
+      transition: 140ms ease;
+    }
+
+    .slider::before {
+      content: "";
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      left: 3px;
+      top: 3px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 1px 5px rgba(28, 41, 51, 0.28);
+      transition: 140ms ease;
+    }
+
+    .switch input:checked + .slider {
+      background: var(--accent);
+    }
+
+    .switch input:disabled + .slider {
+      background: rgba(8, 127, 131, 0.34);
+      cursor: default;
+    }
+
+    .switch input:disabled + .slider::after {
+      content: "";
+      position: absolute;
+      inset: 6px 9px auto auto;
+      width: 6px;
+      height: 10px;
+      border-right: 2px solid rgba(255, 255, 255, 0.9);
+      border-bottom: 2px solid rgba(255, 255, 255, 0.9);
+      transform: rotate(45deg);
+    }
+
+    .switch input:checked + .slider::before {
+      transform: translateX(20px);
+    }
+
+    .button-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .button-row.three {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .btn {
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--surface-2);
+      color: #233037;
+      font-weight: 700;
+      padding: 8px 10px;
+      overflow-wrap: anywhere;
+    }
+
+    .btn:hover:not(:disabled) {
+      border-color: #afbdc5;
+      background: #f1f5f7;
+    }
+
+    .btn.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .btn.secondary {
+      background: #fff8ec;
+      border-color: #e7c98d;
+      color: #60430d;
+    }
+
+    .metric {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 5px 8px;
+      background: #f6f8f2;
+      border: 1px solid #dbe2c6;
+      border-radius: 7px;
+      padding: 10px;
+      color: #34402b;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .metric strong {
+      color: #1f2b1c;
+    }
+
+    .stage {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      overflow: hidden;
+    }
+
+    .stage-head,
+    .preview-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      background: var(--surface-2);
+      min-width: 0;
+    }
+
+    .stage-head h2,
+    .preview-head h2 {
+      margin: 0;
+      font-size: 14px;
+      letter-spacing: 0;
+      line-height: 1.2;
+    }
+
+    .stage-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .stage-wrap {
+      display: grid;
+      min-height: 420px;
+      background:
+        linear-gradient(45deg, #dfe7eb 25%, transparent 25%),
+        linear-gradient(-45deg, #dfe7eb 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #dfe7eb 75%),
+        linear-gradient(-45deg, transparent 75%, #dfe7eb 75%);
+      background-size: 22px 22px;
+      background-position: 0 0, 0 11px, 11px -11px, -11px 0;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #sourceCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none;
+      cursor: crosshair;
+    }
+
+    .empty {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      color: var(--muted);
+      font-size: 14px;
+      text-align: center;
+      pointer-events: none;
+    }
+
+    .preview {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      overflow: hidden;
+    }
+
+    .preview-wrap {
+      display: grid;
+      place-items: center;
+      min-height: 320px;
+      padding: 16px;
+      background:
+        linear-gradient(45deg, #e5eaed 25%, transparent 25%),
+        linear-gradient(-45deg, #e5eaed 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #e5eaed 75%),
+        linear-gradient(-45deg, transparent 75%, #e5eaed 75%);
+      background-color: #f7fafb;
+      background-size: 20px 20px;
+      background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+    }
+
+    #outputCanvas {
+      max-width: 100%;
+      max-height: calc(100vh - 236px);
+      width: auto;
+      height: auto;
+      image-rendering: auto;
+      filter: drop-shadow(0 12px 22px rgba(30, 43, 54, 0.2));
+    }
+
+    .preview-footer {
+      display: grid;
+      gap: 8px;
+      padding: 12px 14px 14px;
+      border-top: 1px solid var(--line);
+      background: var(--surface);
+    }
+
+    .mini {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      margin: 0;
+    }
+
+    .warn {
+      color: var(--danger);
+    }
+
+    @media (max-width: 1080px) {
+      main {
+        grid-template-columns: minmax(250px, 320px) 1fr;
+      }
+
+      .preview {
+        grid-column: 1 / -1;
+      }
+
+      #outputCanvas {
+        max-height: 420px;
+      }
+    }
+
+    @media (max-width: 760px) {
+      header {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .status {
+        text-align: left;
+        width: 100%;
+      }
+
+      main {
+        grid-template-columns: 1fr;
+        padding: 10px;
+      }
+
+      .stage-wrap {
+        min-height: 420px;
+      }
+
+      .field-row,
+      .button-row,
+      .button-row.three {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="brand">
+        <div class="mark" aria-hidden="true"></div>
+        <h1>Hex Tile Cropper</h1>
+      </div>
+      <div class="status" id="statusText">画像を選択してください</div>
+    </header>
+
+    <main>
+      <aside class="panel controls">
+        <div class="control-scroll">
+          <section class="group">
+            <div class="group-title">Input</div>
+            <div class="field">
+              <label for="imageInput">Image</label>
+              <input id="imageInput" type="file" accept="image/*">
+            </div>
+            <div class="button-row">
+              <button class="btn" id="resetSelectionBtn" type="button" disabled>選択を中央へ</button>
+              <button class="btn" id="fullSelectionBtn" type="button" disabled>全面を選択</button>
+            </div>
+          </section>
+
+          <section class="group">
+            <div class="group-title">Tile</div>
+            <div class="field">
+              <label>Orientation</label>
+              <div class="segmented" role="group" aria-label="Orientation">
+                <button type="button" data-orientation="pointy" class="active">Pointy-top</button>
+                <button type="button" data-orientation="flat">Flat-top</button>
+              </div>
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <label for="outputWidth">Width</label>
+                <div class="unit-input">
+                  <input id="outputWidth" type="number" min="16" max="4096" step="1" value="512">
+                  <span>px</span>
+                </div>
+              </div>
+              <div class="field">
+                <label for="outputHeight">Height</label>
+                <div class="unit-input">
+                  <input id="outputHeight" type="number" min="16" max="4096" step="1" value="591">
+                  <span>px</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="button-row">
+              <button class="btn secondary" id="snapHeightBtn" type="button">高さを正規化</button>
+              <button class="btn secondary" id="snapWidthBtn" type="button">幅を正規化</button>
+            </div>
+
+            <div class="toggle locked">
+              <label for="regularToggle">辺長をそろえる</label>
+              <span class="switch">
+                <input id="regularToggle" type="checkbox" checked disabled aria-disabled="true">
+                <span class="slider"></span>
+              </span>
+            </div>
+
+            <div class="toggle locked">
+              <label for="ratioToggle">選択比率を固定</label>
+              <span class="switch">
+                <input id="ratioToggle" type="checkbox" checked disabled aria-disabled="true">
+                <span class="slider"></span>
+              </span>
+            </div>
+          </section>
+
+          <section class="group">
+            <div class="group-title">Export</div>
+            <div class="metric" id="geometryText"></div>
+            <div class="button-row">
+              <button class="btn primary" id="downloadBtn" type="button" disabled>PNG を保存</button>
+              <button class="btn" id="copyBtn" type="button" disabled>コピー</button>
+            </div>
+          </section>
+        </div>
+      </aside>
+
+      <section class="panel stage">
+        <div class="stage-head">
+          <h2>Source</h2>
+          <div class="stage-actions">
+            <button class="btn" id="rotateLeftBtn" type="button" disabled>左回転</button>
+            <button class="btn" id="rotateRightBtn" type="button" disabled>右回転</button>
+          </div>
+        </div>
+        <div class="stage-wrap" id="stageWrap">
+          <canvas id="sourceCanvas" aria-label="Source crop canvas"></canvas>
+          <div class="empty" id="emptyState">Drop image here or choose a file</div>
+        </div>
+      </section>
+
+      <section class="panel preview">
+        <div class="preview-head">
+          <h2>Output</h2>
+          <p class="mini" id="outputMeta">512 x 591 PNG</p>
+        </div>
+        <div class="preview-wrap">
+          <canvas id="outputCanvas" width="512" height="591" aria-label="Output preview canvas"></canvas>
+        </div>
+        <div class="preview-footer">
+          <p class="mini" id="selectionText">選択範囲: -</p>
+          <p class="mini" id="messageText">正六角形モードでは余った領域は透明になります。</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const SQRT3 = Math.sqrt(3);
+    const MAX_OUTPUT_SIZE = 4096;
+    const HANDLE_SIZE = 10;
+    const MIN_SELECTION_SIZE = 8;
+    const DRAG_START_THRESHOLD = 4;
+
+    const els = {
+      imageInput: document.getElementById('imageInput'),
+      sourceCanvas: document.getElementById('sourceCanvas'),
+      outputCanvas: document.getElementById('outputCanvas'),
+      stageWrap: document.getElementById('stageWrap'),
+      emptyState: document.getElementById('emptyState'),
+      outputWidth: document.getElementById('outputWidth'),
+      outputHeight: document.getElementById('outputHeight'),
+      regularToggle: document.getElementById('regularToggle'),
+      ratioToggle: document.getElementById('ratioToggle'),
+      geometryText: document.getElementById('geometryText'),
+      selectionText: document.getElementById('selectionText'),
+      messageText: document.getElementById('messageText'),
+      outputMeta: document.getElementById('outputMeta'),
+      statusText: document.getElementById('statusText'),
+      downloadBtn: document.getElementById('downloadBtn'),
+      copyBtn: document.getElementById('copyBtn'),
+      resetSelectionBtn: document.getElementById('resetSelectionBtn'),
+      fullSelectionBtn: document.getElementById('fullSelectionBtn'),
+      snapHeightBtn: document.getElementById('snapHeightBtn'),
+      snapWidthBtn: document.getElementById('snapWidthBtn'),
+      rotateLeftBtn: document.getElementById('rotateLeftBtn'),
+      rotateRightBtn: document.getElementById('rotateRightBtn'),
+      orientationButtons: Array.from(document.querySelectorAll('[data-orientation]'))
+    };
+
+    const ctx = els.sourceCanvas.getContext('2d');
+    const outCtx = els.outputCanvas.getContext('2d');
+
+    const state = {
+      image: null,
+      imageName: '',
+      orientation: 'pointy',
+      selection: null,
+      imageRect: { x: 0, y: 0, w: 1, h: 1, scale: 1 },
+      drag: null,
+      dpr: 1
+    };
+
+    function clamp(value, min, max) {
+      return Math.min(Math.max(value, min), max);
+    }
+
+    function round(value, digits = 1) {
+      const m = 10 ** digits;
+      return Math.round(value * m) / m;
+    }
+
+    function getOutputSize() {
+      const width = clamp(parseInt(els.outputWidth.value, 10) || 512, 16, MAX_OUTPUT_SIZE);
+      const height = clamp(parseInt(els.outputHeight.value, 10) || 512, 16, MAX_OUTPUT_SIZE);
+      if (String(width) !== els.outputWidth.value) els.outputWidth.value = width;
+      if (String(height) !== els.outputHeight.value) els.outputHeight.value = height;
+      return { width, height };
+    }
+
+    function getHexGeometry(width, height) {
+      const regular = els.regularToggle.checked;
+      const orientation = state.orientation;
+      let hexW = width;
+      let hexH = height;
+      let side = null;
+      let sideMin = null;
+      let sideMax = null;
+
+      if (regular) {
+        if (orientation === 'pointy') {
+          side = Math.min(width / SQRT3, height / 2);
+          hexW = SQRT3 * side;
+          hexH = 2 * side;
+        } else {
+          side = Math.min(width / 2, height / SQRT3);
+          hexW = 2 * side;
+          hexH = SQRT3 * side;
+        }
+        sideMin = side;
+        sideMax = side;
+      } else if (orientation === 'pointy') {
+        const diagonalSide = Math.hypot(width / 2, height / 4);
+        const verticalSide = height / 2;
+        side = (diagonalSide + verticalSide) / 2;
+        sideMin = Math.min(diagonalSide, verticalSide);
+        sideMax = Math.max(diagonalSide, verticalSide);
+      } else {
+        const horizontalSide = width / 2;
+        const diagonalSide = Math.hypot(width / 4, height / 2);
+        side = (horizontalSide + diagonalSide) / 2;
+        sideMin = Math.min(horizontalSide, diagonalSide);
+        sideMax = Math.max(horizontalSide, diagonalSide);
+      }
+
+      return {
+        orientation,
+        regular,
+        x: (width - hexW) / 2,
+        y: (height - hexH) / 2,
+        w: hexW,
+        h: hexH,
+        side,
+        sideMin,
+        sideMax
+      };
+    }
+
+    function getDestinationRatio() {
+      const { width, height } = getOutputSize();
+      const hex = getHexGeometry(width, height);
+      return hex.w / hex.h;
+    }
+
+    function setCanvasSize(canvas, cssWidth, cssHeight) {
+      const dpr = window.devicePixelRatio || 1;
+      const w = Math.max(1, Math.floor(cssWidth));
+      const h = Math.max(1, Math.floor(cssHeight));
+      canvas.style.width = `${w}px`;
+      canvas.style.height = `${h}px`;
+      canvas.width = Math.floor(w * dpr);
+      canvas.height = Math.floor(h * dpr);
+      const context = canvas.getContext('2d');
+      context.setTransform(dpr, 0, 0, dpr, 0, 0);
+      state.dpr = dpr;
+      return { width: w, height: h };
+    }
+
+    function resizeSourceCanvas() {
+      const rect = els.stageWrap.getBoundingClientRect();
+      setCanvasSize(els.sourceCanvas, rect.width, rect.height);
+      drawSource();
+    }
+
+    function setOutputCanvasSize(width, height) {
+      els.outputCanvas.width = width;
+      els.outputCanvas.height = height;
+      els.outputMeta.textContent = `${width} x ${height} PNG`;
+    }
+
+    function imageToCanvasRect() {
+      const canvasW = els.sourceCanvas.clientWidth || 1;
+      const canvasH = els.sourceCanvas.clientHeight || 1;
+      if (!state.image) {
+        return { x: 0, y: 0, w: canvasW, h: canvasH, scale: 1 };
+      }
+      const scale = Math.min(canvasW / state.image.width, canvasH / state.image.height);
+      const w = state.image.width * scale;
+      const h = state.image.height * scale;
+      return {
+        x: (canvasW - w) / 2,
+        y: (canvasH - h) / 2,
+        w,
+        h,
+        scale
+      };
+    }
+
+    function toCanvas(selection) {
+      const r = state.imageRect;
+      return {
+        x: r.x + selection.x * r.scale,
+        y: r.y + selection.y * r.scale,
+        w: selection.w * r.scale,
+        h: selection.h * r.scale
+      };
+    }
+
+    function toImagePoint(clientX, clientY) {
+      const rect = els.sourceCanvas.getBoundingClientRect();
+      const x = (clientX - rect.left - state.imageRect.x) / state.imageRect.scale;
+      const y = (clientY - rect.top - state.imageRect.y) / state.imageRect.scale;
+      return { x, y };
+    }
+
+    function createSelectionForImage(fill = 0.82) {
+      if (!state.image) return null;
+      const ratio = els.ratioToggle.checked ? getDestinationRatio() : state.image.width / state.image.height;
+      let w = state.image.width * fill;
+      let h = w / ratio;
+      if (h > state.image.height * fill) {
+        h = state.image.height * fill;
+        w = h * ratio;
+      }
+      w = Math.max(MIN_SELECTION_SIZE, Math.min(w, state.image.width));
+      h = Math.max(MIN_SELECTION_SIZE, Math.min(h, state.image.height));
+      return {
+        x: (state.image.width - w) / 2,
+        y: (state.image.height - h) / 2,
+        w,
+        h
+      };
+    }
+
+    function clampSelection(selection) {
+      if (!state.image || !selection) return selection;
+      let { x, y, w, h } = selection;
+      w = clamp(w, MIN_SELECTION_SIZE, state.image.width);
+      h = clamp(h, MIN_SELECTION_SIZE, state.image.height);
+      x = clamp(x, 0, state.image.width - w);
+      y = clamp(y, 0, state.image.height - h);
+      return { x, y, w, h };
+    }
+
+    function fitSelectionToRatio() {
+      if (!state.image || !state.selection || !els.ratioToggle.checked) return;
+      const ratio = getDestinationRatio();
+      const centerX = state.selection.x + state.selection.w / 2;
+      const centerY = state.selection.y + state.selection.h / 2;
+      let w = state.selection.w;
+      let h = w / ratio;
+
+      if (h > state.image.height) {
+        h = state.image.height;
+        w = h * ratio;
+      }
+      if (w > state.image.width) {
+        w = state.image.width;
+        h = w / ratio;
+      }
+
+      state.selection = clampSelection({
+        x: centerX - w / 2,
+        y: centerY - h / 2,
+        w,
+        h
+      });
+    }
+
+    function drawChecker(context, width, height) {
+      context.save();
+      context.fillStyle = '#f7fafb';
+      context.fillRect(0, 0, width, height);
+      context.fillStyle = '#e3eaee';
+      const step = 16;
+      for (let y = 0; y < height; y += step) {
+        for (let x = 0; x < width; x += step) {
+          if (((x + y) / step) % 2 === 0) {
+            context.fillRect(x, y, step, step);
+          }
+        }
+      }
+      context.restore();
+    }
+
+    function makeHexPath(context, x, y, w, h, orientation) {
+      if (orientation === 'pointy') {
+        const cx = x + w / 2;
+        context.moveTo(cx, y);
+        context.lineTo(x + w, y + h * 0.25);
+        context.lineTo(x + w, y + h * 0.75);
+        context.lineTo(cx, y + h);
+        context.lineTo(x, y + h * 0.75);
+        context.lineTo(x, y + h * 0.25);
+      } else {
+        const cy = y + h / 2;
+        context.moveTo(x, cy);
+        context.lineTo(x + w * 0.25, y);
+        context.lineTo(x + w * 0.75, y);
+        context.lineTo(x + w, cy);
+        context.lineTo(x + w * 0.75, y + h);
+        context.lineTo(x + w * 0.25, y + h);
+      }
+      context.closePath();
+    }
+
+    function drawSource() {
+      const canvasW = els.sourceCanvas.clientWidth || 1;
+      const canvasH = els.sourceCanvas.clientHeight || 1;
+      ctx.clearRect(0, 0, canvasW, canvasH);
+      state.imageRect = imageToCanvasRect();
+
+      if (!state.image) {
+        return;
+      }
+
+      ctx.save();
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(
+        state.image,
+        state.imageRect.x,
+        state.imageRect.y,
+        state.imageRect.w,
+        state.imageRect.h
+      );
+      ctx.restore();
+
+      if (!state.selection) return;
+
+      const sel = toCanvas(state.selection);
+
+      ctx.save();
+      ctx.fillStyle = 'rgba(4, 14, 20, 0.48)';
+      ctx.beginPath();
+      ctx.rect(state.imageRect.x, state.imageRect.y, state.imageRect.w, state.imageRect.h);
+      ctx.rect(sel.x, sel.y, sel.w, sel.h);
+      ctx.fill('evenodd');
+      ctx.restore();
+
+      ctx.save();
+      ctx.beginPath();
+      makeHexPath(ctx, sel.x, sel.y, sel.w, sel.h, state.orientation);
+      ctx.fillStyle = 'rgba(8, 127, 131, 0.16)';
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = '#087f83';
+      ctx.stroke();
+      ctx.restore();
+
+      drawHandles(sel);
+    }
+
+    function drawHandles(sel) {
+      const handles = getHandles(sel);
+      ctx.save();
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#087f83';
+      ctx.lineWidth = 1.5;
+      for (const h of handles) {
+        ctx.beginPath();
+        ctx.rect(h.x - HANDLE_SIZE / 2, h.y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function getHandles(sel) {
+      const x0 = sel.x;
+      const x1 = sel.x + sel.w / 2;
+      const x2 = sel.x + sel.w;
+      const y0 = sel.y;
+      const y1 = sel.y + sel.h / 2;
+      const y2 = sel.y + sel.h;
+      return [
+        { id: 'nw', x: x0, y: y0 },
+        { id: 'n', x: x1, y: y0 },
+        { id: 'ne', x: x2, y: y0 },
+        { id: 'e', x: x2, y: y1 },
+        { id: 'se', x: x2, y: y2 },
+        { id: 's', x: x1, y: y2 },
+        { id: 'sw', x: x0, y: y2 },
+        { id: 'w', x: x0, y: y1 }
+      ];
+    }
+
+    function hitTest(clientX, clientY) {
+      if (!state.selection) return { mode: 'none' };
+      const rect = els.sourceCanvas.getBoundingClientRect();
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
+      const sel = toCanvas(state.selection);
+      const handles = getHandles(sel);
+
+      for (const h of handles) {
+        if (Math.abs(x - h.x) <= HANDLE_SIZE && Math.abs(y - h.y) <= HANDLE_SIZE) {
+          return { mode: 'resize', handle: h.id };
+        }
+      }
+
+      if (x >= sel.x && x <= sel.x + sel.w && y >= sel.y && y <= sel.y + sel.h) {
+        return { mode: 'move' };
+      }
+
+      const inImage = x >= state.imageRect.x &&
+        x <= state.imageRect.x + state.imageRect.w &&
+        y >= state.imageRect.y &&
+        y <= state.imageRect.y + state.imageRect.h;
+
+      return inImage ? { mode: 'create' } : { mode: 'none' };
+    }
+
+    function updateSelectionFromDrag(point) {
+      const drag = state.drag;
+      if (!drag || !state.image) return;
+
+      if (drag.mode === 'move') {
+        state.selection = clampSelection({
+          x: point.x - drag.offsetX,
+          y: point.y - drag.offsetY,
+          w: drag.start.w,
+          h: drag.start.h
+        });
+      } else if (drag.mode === 'resize') {
+        state.selection = resizeSelection(drag.start, drag.handle, point);
+      } else if (drag.mode === 'create') {
+        drag.created = true;
+        state.selection = createSelectionFromPoints(drag.startPoint, point);
+      }
+
+      renderAll();
+    }
+
+    function resizeSelection(start, handle, point) {
+      let left = start.x;
+      let right = start.x + start.w;
+      let top = start.y;
+      let bottom = start.y + start.h;
+
+      if (handle.includes('w')) left = point.x;
+      if (handle.includes('e')) right = point.x;
+      if (handle.includes('n')) top = point.y;
+      if (handle.includes('s')) bottom = point.y;
+
+      if (handle === 'n' || handle === 's') {
+        const centerX = (left + right) / 2;
+        const h = Math.abs(bottom - top);
+        const w = els.ratioToggle.checked ? h * getDestinationRatio() : start.w;
+        left = centerX - w / 2;
+        right = centerX + w / 2;
+      }
+
+      if (handle === 'e' || handle === 'w') {
+        const centerY = (top + bottom) / 2;
+        const w = Math.abs(right - left);
+        const h = els.ratioToggle.checked ? w / getDestinationRatio() : start.h;
+        top = centerY - h / 2;
+        bottom = centerY + h / 2;
+      }
+
+      if (left > right) [left, right] = [right, left];
+      if (top > bottom) [top, bottom] = [bottom, top];
+
+      let w = Math.max(MIN_SELECTION_SIZE, right - left);
+      let h = Math.max(MIN_SELECTION_SIZE, bottom - top);
+
+      if (els.ratioToggle.checked && handle.length === 2) {
+        const ratio = getDestinationRatio();
+        if (w / h > ratio) {
+          w = h * ratio;
+        } else {
+          h = w / ratio;
+        }
+
+        if (handle.includes('w')) left = right - w;
+        else right = left + w;
+        if (handle.includes('n')) top = bottom - h;
+        else bottom = top + h;
+      }
+
+      return clampSelection({ x: left, y: top, w, h });
+    }
+
+    function createSelectionFromPoints(a, b) {
+      let left = clamp(Math.min(a.x, b.x), 0, state.image.width);
+      let right = clamp(Math.max(a.x, b.x), 0, state.image.width);
+      let top = clamp(Math.min(a.y, b.y), 0, state.image.height);
+      let bottom = clamp(Math.max(a.y, b.y), 0, state.image.height);
+      let w = Math.max(MIN_SELECTION_SIZE, right - left);
+      let h = Math.max(MIN_SELECTION_SIZE, bottom - top);
+
+      if (els.ratioToggle.checked) {
+        const ratio = getDestinationRatio();
+        if (w / h > ratio) {
+          h = w / ratio;
+        } else {
+          w = h * ratio;
+        }
+        if (b.x < a.x) left = a.x - w;
+        if (b.y < a.y) top = a.y - h;
+      }
+
+      return clampSelection({ x: left, y: top, w, h });
+    }
+
+    function renderOutput() {
+      const { width, height } = getOutputSize();
+      setOutputCanvasSize(width, height);
+      const hex = getHexGeometry(width, height);
+
+      outCtx.clearRect(0, 0, width, height);
+
+      if (!state.image || !state.selection) {
+        drawChecker(outCtx, width, height);
+        drawOutputGuide(hex, width, height);
+        return;
+      }
+
+      outCtx.save();
+      outCtx.beginPath();
+      makeHexPath(outCtx, hex.x, hex.y, hex.w, hex.h, hex.orientation);
+      outCtx.clip();
+      outCtx.imageSmoothingEnabled = true;
+      outCtx.imageSmoothingQuality = 'high';
+      outCtx.drawImage(
+        state.image,
+        state.selection.x,
+        state.selection.y,
+        state.selection.w,
+        state.selection.h,
+        hex.x,
+        hex.y,
+        hex.w,
+        hex.h
+      );
+      outCtx.restore();
+    }
+
+    function drawOutputGuide(hex, width, height) {
+      outCtx.save();
+      outCtx.beginPath();
+      makeHexPath(outCtx, hex.x, hex.y, hex.w, hex.h, hex.orientation);
+      outCtx.fillStyle = 'rgba(8, 127, 131, 0.14)';
+      outCtx.fill();
+      outCtx.strokeStyle = '#087f83';
+      outCtx.lineWidth = Math.max(1, Math.min(width, height) / 180);
+      outCtx.stroke();
+      outCtx.restore();
+    }
+
+    function updateGeometryText() {
+      const { width, height } = getOutputSize();
+      const hex = getHexGeometry(width, height);
+      const marginX = (width - hex.w) / 2;
+      const marginY = (height - hex.h) / 2;
+      const exactRatio = state.orientation === 'pointy' ? SQRT3 / 2 : 2 / SQRT3;
+      const currentRatio = width / height;
+      const delta = Math.abs(currentRatio - exactRatio);
+      const ratioNote = delta < 0.002 ? '一致' : '余白あり';
+      const sideLabel = els.regularToggle.checked
+        ? `${round(hex.side)} px`
+        : `${round(hex.sideMin)}-${round(hex.sideMax)} px`;
+      els.geometryText.innerHTML = `
+        <strong>Hex</strong><span>${round(hex.w)} x ${round(hex.h)} px</span>
+        <strong>Side</strong><span>${sideLabel}</span>
+        <strong>Margin</strong><span>${round(marginX)} x ${round(marginY)} px</span>
+        <strong>Ratio</strong><span>${els.regularToggle.checked ? ratioNote : '変形'}</span>
+      `;
+
+      if (!els.regularToggle.checked) {
+        els.messageText.innerHTML = '<span class="warn">辺長固定 OFF: 出力サイズいっぱいに六角形を変形します。</span>';
+      } else if (marginX > 0.5 || marginY > 0.5) {
+        els.messageText.textContent = '正六角形モードでは余った領域は透明になります。';
+      } else {
+        els.messageText.textContent = '指定サイズいっぱいの正六角形です。';
+      }
+    }
+
+    function updateSelectionText() {
+      if (!state.selection) {
+        els.selectionText.textContent = '選択範囲: -';
+        return;
+      }
+      const sel = state.selection;
+      els.selectionText.textContent = `選択範囲: ${round(sel.w)} x ${round(sel.h)} px / x ${round(sel.x)}, y ${round(sel.y)}`;
+    }
+
+    function updateControls() {
+      const hasImage = Boolean(state.image);
+      els.emptyState.style.display = hasImage ? 'none' : 'grid';
+      els.downloadBtn.disabled = !hasImage;
+      els.copyBtn.disabled = !hasImage || !navigator.clipboard || typeof ClipboardItem === 'undefined';
+      els.resetSelectionBtn.disabled = !hasImage;
+      els.fullSelectionBtn.disabled = !hasImage;
+      els.rotateLeftBtn.disabled = !hasImage;
+      els.rotateRightBtn.disabled = !hasImage;
+      els.statusText.textContent = hasImage
+        ? `${state.imageName || 'Image'} / ${state.image.width} x ${state.image.height}`
+        : '画像を選択してください';
+    }
+
+    function renderAll() {
+      drawSource();
+      renderOutput();
+      updateGeometryText();
+      updateSelectionText();
+      updateControls();
+    }
+
+    async function loadFile(file) {
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        state.image = img;
+        state.imageName = file.name;
+        state.selection = createSelectionForImage();
+        URL.revokeObjectURL(url);
+        renderAll();
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        els.statusText.textContent = '画像を読み込めませんでした';
+      };
+      img.src = url;
+    }
+
+    function snapHeightToRegular() {
+      const { width } = getOutputSize();
+      const height = state.orientation === 'pointy'
+        ? Math.round((2 / SQRT3) * width)
+        : Math.round((SQRT3 / 2) * width);
+      els.outputHeight.value = clamp(height, 16, MAX_OUTPUT_SIZE);
+      fitSelectionToRatio();
+      renderAll();
+    }
+
+    function snapWidthToRegular() {
+      const { height } = getOutputSize();
+      const width = state.orientation === 'pointy'
+        ? Math.round((SQRT3 / 2) * height)
+        : Math.round((2 / SQRT3) * height);
+      els.outputWidth.value = clamp(width, 16, MAX_OUTPUT_SIZE);
+      fitSelectionToRatio();
+      renderAll();
+    }
+
+    function rotateImage(direction) {
+      if (!state.image) return;
+      const canvas = document.createElement('canvas');
+      const tempCtx = canvas.getContext('2d');
+      canvas.width = state.image.height;
+      canvas.height = state.image.width;
+      tempCtx.translate(canvas.width / 2, canvas.height / 2);
+      tempCtx.rotate(direction * Math.PI / 2);
+      tempCtx.drawImage(state.image, -state.image.width / 2, -state.image.height / 2);
+      const img = new Image();
+      img.onload = () => {
+        state.image = img;
+        state.selection = createSelectionForImage();
+        renderAll();
+      };
+      img.src = canvas.toDataURL('image/png');
+    }
+
+    function downloadPng() {
+      if (!state.image) return;
+      renderOutput();
+      const link = document.createElement('a');
+      const safeName = (state.imageName || 'hex-tile').replace(/\.[^.]+$/, '').replace(/[^\w.-]+/g, '-');
+      link.download = `${safeName}-${state.orientation}-hex.png`;
+      link.href = els.outputCanvas.toDataURL('image/png');
+      link.click();
+    }
+
+    async function copyPng() {
+      if (!state.image || !navigator.clipboard || typeof ClipboardItem === 'undefined') return;
+      renderOutput();
+      els.outputCanvas.toBlob(async (blob) => {
+        if (!blob) return;
+        try {
+          await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+          els.statusText.textContent = 'PNG をクリップボードにコピーしました';
+        } catch {
+          els.statusText.textContent = 'コピーできませんでした';
+        }
+      }, 'image/png');
+    }
+
+    els.imageInput.addEventListener('change', (event) => {
+      loadFile(event.target.files[0]);
+    });
+
+    els.stageWrap.addEventListener('dragover', (event) => {
+      event.preventDefault();
+    });
+
+    els.stageWrap.addEventListener('drop', (event) => {
+      event.preventDefault();
+      const file = Array.from(event.dataTransfer.files).find((item) => item.type.startsWith('image/'));
+      loadFile(file);
+    });
+
+    els.orientationButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        state.orientation = button.dataset.orientation;
+        els.orientationButtons.forEach((item) => item.classList.toggle('active', item === button));
+        fitSelectionToRatio();
+        renderAll();
+      });
+    });
+
+    [els.outputWidth, els.outputHeight].forEach((input) => {
+      input.addEventListener('input', () => {
+        fitSelectionToRatio();
+        renderAll();
+      });
+    });
+
+    els.regularToggle.addEventListener('change', () => {
+      fitSelectionToRatio();
+      renderAll();
+    });
+
+    els.ratioToggle.addEventListener('change', () => {
+      fitSelectionToRatio();
+      renderAll();
+    });
+
+    els.resetSelectionBtn.addEventListener('click', () => {
+      state.selection = createSelectionForImage();
+      renderAll();
+    });
+
+    els.fullSelectionBtn.addEventListener('click', () => {
+      if (!state.image) return;
+      state.selection = { x: 0, y: 0, w: state.image.width, h: state.image.height };
+      fitSelectionToRatio();
+      renderAll();
+    });
+
+    els.snapHeightBtn.addEventListener('click', snapHeightToRegular);
+    els.snapWidthBtn.addEventListener('click', snapWidthToRegular);
+    els.downloadBtn.addEventListener('click', downloadPng);
+    els.copyBtn.addEventListener('click', copyPng);
+    els.rotateLeftBtn.addEventListener('click', () => rotateImage(-1));
+    els.rotateRightBtn.addEventListener('click', () => rotateImage(1));
+
+    els.sourceCanvas.addEventListener('pointerdown', (event) => {
+      if (!state.image) return;
+      els.sourceCanvas.setPointerCapture(event.pointerId);
+      const hit = hitTest(event.clientX, event.clientY);
+      const point = toImagePoint(event.clientX, event.clientY);
+      if (hit.mode === 'move') {
+        state.drag = {
+          mode: 'move',
+          start: { ...state.selection },
+          offsetX: point.x - state.selection.x,
+          offsetY: point.y - state.selection.y
+        };
+      } else if (hit.mode === 'resize') {
+        state.drag = {
+          mode: 'resize',
+          handle: hit.handle,
+          start: { ...state.selection }
+        };
+      } else if (hit.mode === 'create') {
+        const clamped = {
+          x: clamp(point.x, 0, state.image.width),
+          y: clamp(point.y, 0, state.image.height)
+        };
+        state.drag = {
+          mode: 'create',
+          startPoint: clamped,
+          start: state.selection ? { ...state.selection } : null,
+          startClientX: event.clientX,
+          startClientY: event.clientY,
+          created: false
+        };
+      }
+      drawSource();
+    });
+
+    els.sourceCanvas.addEventListener('pointermove', (event) => {
+      if (!state.image) return;
+      if (!state.drag) {
+        const hit = hitTest(event.clientX, event.clientY);
+        els.sourceCanvas.style.cursor = cursorForHit(hit);
+        return;
+      }
+      if (state.drag.mode === 'create') {
+        const dx = event.clientX - state.drag.startClientX;
+        const dy = event.clientY - state.drag.startClientY;
+        if (!state.drag.created && Math.hypot(dx, dy) < DRAG_START_THRESHOLD) {
+          return;
+        }
+      }
+      const point = toImagePoint(event.clientX, event.clientY);
+      updateSelectionFromDrag({
+        x: clamp(point.x, 0, state.image.width),
+        y: clamp(point.y, 0, state.image.height)
+      });
+    });
+
+    els.sourceCanvas.addEventListener('pointerup', () => {
+      if (state.drag?.mode === 'create' && !state.drag.created) {
+        state.selection = state.drag.start;
+      }
+      state.drag = null;
+      renderAll();
+    });
+
+    els.sourceCanvas.addEventListener('pointercancel', () => {
+      state.drag = null;
+      renderAll();
+    });
+
+    function cursorForHit(hit) {
+      if (hit.mode === 'move') return 'move';
+      if (hit.mode === 'create') return 'crosshair';
+      if (hit.mode !== 'resize') return 'default';
+      const map = {
+        n: 'ns-resize',
+        s: 'ns-resize',
+        e: 'ew-resize',
+        w: 'ew-resize',
+        ne: 'nesw-resize',
+        sw: 'nesw-resize',
+        nw: 'nwse-resize',
+        se: 'nwse-resize'
+      };
+      return map[hit.handle] || 'default';
+    }
+
+    const resizeObserver = new ResizeObserver(resizeSourceCanvas);
+    resizeObserver.observe(els.stageWrap);
+
+    renderAll();
+  </script>
+</body>
+</html>
