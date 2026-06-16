@@ -4,6 +4,27 @@ Agent-oriented tools and a Codex skill for creating transparent hex tile PNGs fr
 
 The original browser cropper in `hex-tile-cropper/` is a human-facing proof of concept. The publishable skill lives in `skills/create-hex-tile-image/` and exposes deterministic scripts for agent workflows.
 
+## 機能説明
+
+画像をまとめたディレクトリを指定して、hex tile 用に crop することができます。
+画像内のいい感じの場所をcropしたい場合はうまく指示すると聞いてくれるかもしれません。
+画像がない場合に動作を確認したい場合は、画像生成含めて指示することができます。
+
+### プロンプト例
+
+> Sci-fi風世界観で、64パターンの画像を生成してHexTile画像のatlasを作って！ pointy-top, flat-topそれぞれでお願い。tile一つのサイズは長い方が64pxになるようにして。64枚を個別に AI 画像生成して確認してください。
+
+画像生成から開始する場合は、"個別に AI 画像生成して"と言わないとうまくいかないかもしれません。
+
+### 出力
+
+manifests/ crop 用 manifest
+tiles/<orientation>-<size>/ hex 形状に crop, 範囲外透過 した画像
+atlases/<orientation>-<size>/ 作成した tile を並べた画像
+
+crop 元の画像は破壊しません。そのまま残るので crop に問題があれば個別に確認して `hex-tile-cropper/index.html` で人力の crop をすることができます。
+
+
 ## Skill Package
 
 ```text
