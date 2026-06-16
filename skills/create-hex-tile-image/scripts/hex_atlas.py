@@ -31,12 +31,19 @@ def build_parser() -> argparse.ArgumentParser:
 
 def choose_grid(count: int, tile_w: int, tile_h: int) -> tuple[int, int]:
     best: tuple[int, int, int, int, int] | None = None
-    for cols in range(1, count + 1):
+    sqrt = math.floor(math.sqrt(count))
+    find_range = math.ceil((2 - math.sqrt(3)) * count)
+    for cols in range(max(1, sqrt - find_range), min(sqrt + 1 + find_range + 1, count + 1)):
         rows = math.ceil(count / cols)
         atlas_w = cols * tile_w
         atlas_h = rows * tile_h
         empty = rows * cols - count
-        score = (abs(atlas_w - atlas_h), empty, atlas_w * atlas_h, cols, rows)
+        last_row_count = count % cols
+        if last_row_count == 0:
+            last_row_count = cols
+        remain_rate = (cols - last_row_count) / cols
+        second_order = remain_rate * (cols - math.sqrt(cols)) * tile_w
+        score = (abs(atlas_w - atlas_h) + second_order, empty, atlas_w * atlas_h, cols, rows)
         if best is None or score < best:
             best = score
     assert best is not None

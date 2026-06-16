@@ -44,7 +44,20 @@ Key outputs:
 
 ## Runtime
 
-The scripts require Pillow. If `python3 -c "import PIL"` fails, use the bundled Codex Desktop Python returned by `load_workspace_dependencies`.
+The scripts require Pillow. Create a local virtual environment before running
+the crop, atlas, or design simulation scripts:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+```
+
+After setup, use `python` from the activated environment:
+
+```bash
+python docs/design/choose-grid-blank-simulation.py
+```
 
 ## Quick Validation (pipeline self-test only)
 
